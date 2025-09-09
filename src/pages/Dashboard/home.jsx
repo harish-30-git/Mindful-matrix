@@ -10,7 +10,7 @@ function Home() {
     // Fetch user profile
     const getProfile = async () => {
       try {
-        const data = await fetchWithToken("http://127.0.0.1:5000/profile");
+        const data = await fetchWithToken("https://mindmatrix-3.onrender.com/profile");
         setUsername(data.username);
       } catch (err) {
         console.error(err);
