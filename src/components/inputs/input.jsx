@@ -39,4 +39,4 @@ const input = ({value , onChange , placeholder, label ,type}) => {
   )
 }
 
-export default input
+export default input

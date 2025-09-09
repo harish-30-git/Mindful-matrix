@@ -1,14 +1,15 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { fetchWithToken } from "../../utils/api";
 
 function Chat() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [listening, setListening] = useState(false);
+  const chatEndRef = useRef(null);
+  const [speakingMsgIndex, setSpeakingMsgIndex] = useState(null);
 
-  // 🎙 Speech Recognition setup
-  const SpeechRecognition =
-    window.SpeechRecognition || window.webkitSpeechRecognition;
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const recognition = SpeechRecognition ? new SpeechRecognition() : null;
 
   if (recognition) {
@@ -22,45 +23,23 @@ function Chat() {
       setListening(false);
     };
 
-    recognition.onerror = () => {
-      setListening(false);
-      alert("Voice recognition error. Try again!");
-    };
+    recognition.onerror = () => setListening(false);
   }
 
-  // 🔊 Text-to-Speech
-  const speak = (text) => {
+  const speak = (text, idx) => {
     const synth = window.speechSynthesis;
+    if (synth.speaking) {
+      synth.cancel();
+      if (speakingMsgIndex === idx) {
+        setSpeakingMsgIndex(null);
+        return;
+      }
+    }
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = "en-IN";
+    utter.onend = () => setSpeakingMsgIndex(null);
     synth.speak(utter);
-  };
-
-  const sendMessage = async (msg = input) => {
-    if (!msg.trim()) return;
-    const newMessages = [...messages, { sender: "user", text: msg }];
-    setMessages(newMessages);
-    setInput("");
-    setIsTyping(true);
-
-    try {
-      const response = await fetch("http://127.0.0.1:5000/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: msg }),
-      });
-
-      const data = await response.json();
-      setIsTyping(false);
-      setMessages([...newMessages, { sender: "bot", text: data.response }]);
-      speak(data.response);
-    } catch (error) {
-      setIsTyping(false);
-      setMessages([
-        ...newMessages,
-        { sender: "bot", text: "⚠ Error connecting to server" },
-      ]);
-    }
+    setSpeakingMsgIndex(idx);
   };
 
   const startListening = () => {
@@ -68,97 +47,108 @@ function Chat() {
       setListening(true);
       recognition.start();
     } else {
-      alert("Speech recognition not supported in this browser.");
+      alert("Speech recognition not supported.");
     }
   };
 
-  return (
-    <div className="flex flex-col items-center justify-center bg-gradient-to-tr from-sky-200 via-sky-50 to-violet-100 min-h-screen">
-      {/* Centered chat box container */}
-      <div className="w-full max-w-2xl h-[650px] bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-5 text-white font-bold text-lg text-center tracking-wider rounded-t-3xl">
-          💬 Mental Health Chat Assistant
-        </div>
+  const resetChat = async () => {
+    try {
+      await fetchWithToken("http://127.0.0.1:5000/chat/reset", { method: "POST" });
+      setMessages([]);
+    } catch (err) {
+      console.error("Error resetting chat:", err);
+    }
+  };
 
-        {/* Messages container */}
-        <div className="flex-1 p-5 overflow-y-auto bg-gray-50">
+  const sendMessage = async (msg = input) => {
+    if (!msg.trim()) return;
+
+    // Reset chat if starting with hi/hello
+    if (/^(hi|hello)/i.test(msg.trim()) && messages.length > 0) {
+      await resetChat();
+    }
+
+    const newMessages = [...messages, { sender: "user", text: msg }];
+    setMessages(newMessages);
+    setInput("");
+    setIsTyping(true);
+
+    try {
+      const data = await fetchWithToken("http://127.0.0.1:5000/chat", {
+        method: "POST",
+        body: JSON.stringify({ message: msg }),
+      });
+
+      setIsTyping(false);
+      setMessages([...newMessages, { sender: "bot", text: data.response }]);
+    } catch (error) {
+      setIsTyping(false);
+      setMessages([...newMessages, { sender: "bot", text: "⚠ Error connecting to server" }]);
+    }
+  };
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  return (
+    <div className="h-screen flex flex-col items-center justify-start bg-gradient-to-tr from-sky-200 via-sky-50 to-violet-100 overflow-hidden font-sans p-6">
+      <h1 className="text-4xl md:text-5xl font-extrabold text-blue-900 mb-6 drop-shadow-sm text-center">
+        💬 Mindfull Matrix Chat Assistant
+      </h1>
+      <p className="text-lg text-gray-700 max-w-2xl text-center mb-8">
+        Ask anything about mental health, relaxation, or emotional support.
+      </p>
+
+      <div className="w-full max-w-2xl flex flex-col h-[550px] bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-200">
+        <div className="flex-1 overflow-y-auto p-6 bg-gradient-to-b from-gray-50 to-white scrollbar-thin scrollbar-thumb-blue-300 scrollbar-track-gray-100">
           {messages.map((msg, idx) => (
-            <div
-              key={idx}
-              className={`flex mb-4 ${
-                msg.sender === "user" ? "justify-end" : "justify-start"
-              }`}
-            >
+            <div key={idx} className={`flex mb-4 items-center ${msg.sender === "user" ? "justify-end" : "justify-start"}`}>
               <div
-                className={`p-4 rounded-xl max-w-[70%] text-white shadow-md ${
+                className={`max-w-[calc(70%-30px)] p-4 rounded-2xl shadow-lg ${
                   msg.sender === "user"
-                    ? "bg-gradient-to-r from-blue-500 to-blue-700"
-                    : "bg-gradient-to-r from-purple-400 to-purple-600"
+                    ? "bg-gradient-to-r from-blue-400 to-blue-600 text-white animate-slideInRight"
+                    : "bg-gradient-to-r from-purple-400 to-purple-600 text-white animate-slideInLeft"
                 }`}
               >
                 {msg.text}
               </div>
+              {msg.sender === "bot" && (
+                <span
+                  className="ml-2 cursor-pointer text-xl text-purple-700 hover:text-purple-900 transition-all select-none"
+                  onClick={() => speak(msg.text, idx)}
+                >
+                  {speakingMsgIndex === idx ? "⏸️" : "🔊"}
+                </span>
+              )}
             </div>
           ))}
-
-          {isTyping && (
-            <div className="text-gray-500 text-sm text-center mt-2 italic">
-              Bot is typing...
-            </div>
-          )}
+          {isTyping && <div className="text-gray-500 text-sm italic mt-2 text-center">Bot is typing...</div>}
+          <div ref={chatEndRef} />
         </div>
 
-        {/* Input area */}
-        <div className="flex p-4 border-t border-gray-200 bg-white">
+        <div className="flex items-center p-4 border-t border-gray-200 bg-white rounded-b-3xl shadow-inner">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                sendMessage();
-              }
-            }}
-            placeholder="Ask about mental health, stress, wellness..."
-            className="flex-1 p-3 mr-3 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
+            onKeyDown={(e) => { if (e.key === "Enter") sendMessage(); }}
+            placeholder="Type your question here..."
+            className="flex-1 p-3 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all text-sm shadow-inner"
           />
           <button
             onClick={sendMessage}
-            className="p-3 bg-gradient-to-r from-blue-500 to-blue-700 text-white rounded-full shadow-lg transition-all hover:opacity-90 active:scale-95 mr-2"
+            className="ml-3 p-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-full shadow-md hover:from-blue-700 hover:to-purple-700 hover:opacity-90 transition-all"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={2.5}
-              stroke="currentColor"
-              className="w-5 h-5"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5"
-              />
-            </svg>
+            Send
           </button>
           <button
             onClick={startListening}
-            className={`p-3 text-white rounded-full shadow-lg transition-all hover:opacity-90 active:scale-95 ${
-              listening
-                ? "bg-gradient-to-r from-red-500 to-red-700"
-                : "bg-gradient-to-r from-purple-500 to-purple-700"
+            className={`ml-2 p-3 rounded-full text-white shadow-md transition-all hover:opacity-90 ${
+              listening ? "bg-red-500" : "bg-purple-500"
             }`}
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-              className="w-5 h-5"
-            >
-              <path d="M8.25 4.5a.75.75 0 0 1 .75.75v14.25a.75.75 0 0 1-1.5 0V5.25a.75.75 0 0 1 .75-.75ZM21.75 9a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0v-4.5a.75.75 0 0 1 .75-.75ZM2.25 9a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0v-4.5A.75.75 0 0 1 2.25 9ZM16.5 4.5a.75.75 0 0 1 .75.75v14.25a.75.75 0 0 1-1.5 0V5.25a.75.75 0 0 1 .75-.75ZM11.25 4.5a.75.75 0 0 1 .75.75v14.25a.75.75 0 0 1-1.5 0V5.25a.75.75 0 0 1 .75-.75Z" />
-            </svg>
+            🎤
           </button>
         </div>
       </div>

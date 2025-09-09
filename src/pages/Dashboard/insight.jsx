@@ -1,3 +1,5 @@
+import React, { useEffect, useState } from "react";
+import { fetchWithToken } from "../../utils/api";
 import {
   LineChart,
   Line,
@@ -6,72 +8,105 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
 } from "recharts";
 
-const data = [
-  { day: "Mon", mood: 6 },
-  { day: "Tue", mood: 7 },
-  { day: "Wed", mood: 5 },
-  { day: "Thu", mood: 8 },
-  { day: "Fri", mood: 4 },
-  { day: "Sat", mood: 7 },
-  { day: "Sun", mood: 6 },
-];
-
 export default function Insight() {
+  const [data, setData] = useState([]);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const moods = await fetchWithToken("http://127.0.0.1:5000/api/weekly-moods");
+        setData(moods);
+      } catch (err) {
+        console.error("Error loading moods:", err);
+      }
+    };
+    loadData();
+  }, []);
+
+  // ---- Static pie chart values ----
+  const pieData = [
+    { name: "Happy", value: 4 },
+    { name: "Anxious", value: 3 },
+    { name: "Stressed", value: 2 },
+    { name: "Neutral", value: 1 },
+  ];
+
+  const COLORS = ["#facc15", "#805ad5", "#e53e3e", "#718096"];
+
   return (
-    // Outer container for the entire page
-    <div className="flex flex-col bg-gradient-to-tr from-sky-200 via-sky-50 to-violet-100 min-h-screen">
-      <div className="p-6">
-        {/* Title at the top-left */}
-        <h1 className="text-3xl font-bold mb-8 text-left text-gray-800">
-          Your Mood Insights
-        </h1>
-        
-        {/* Container to center the graph */}
-        <div className="flex justify-center">
-          {/* Container for the graph with appealing styling */}
-          <div className="bg-white p-6 rounded-3xl shadow-xl w-full max-w-4xl">
-            <ResponsiveContainer width="100%" height={400}>
-              <LineChart
-                data={data}
-                margin={{ top: 20, right: 30, left: 0, bottom: 5 }}
+    <div className="flex flex-col bg-gradient-to-tr from-sky-200 via-sky-50 to-violet-100 min-h-screen p-6">
+      {/* Title */}
+      <h1 className="text-4xl font-bold mb-8 text-center text-gray-800">
+        Your Mood Insights
+      </h1>
+
+      {/* Charts Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Line Chart */}
+        <div className="bg-white p-6 rounded-3xl shadow-xl">
+          <h2 className="text-2xl font-semibold text-center mb-6 text-gray-700">
+            Weekly Mood Trend
+          </h2>
+          <ResponsiveContainer width="100%" height={400}>
+            <LineChart
+              data={data}
+              margin={{ top: 20, right: 30, left: 0, bottom: 5 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="day" axisLine={false} tickLine={false} />
+              <YAxis domain={[0, 10]} axisLine={false} tickLine={false} />
+              <Tooltip
+                cursor={{ stroke: "#a3a3a3", strokeDasharray: 2 }}
+                wrapperStyle={{ outline: "none" }}
+              />
+              <Line
+                type="monotone"
+                dataKey="mood"
+                stroke="#4c51bf"
+                strokeWidth={3}
+                dot={{ r: 6 }}
+                activeDot={{ r: 9 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Pie Chart */}
+        <div className="bg-white p-6 rounded-3xl shadow-xl">
+          <h2 className="text-2xl font-semibold text-center mb-6 text-gray-700">
+            Mood Distribution
+          </h2>
+          <ResponsiveContainer width="100%" height={400}>
+            <PieChart>
+              <Pie
+                data={pieData}
+                cx="50%"
+                cy="50%"
+                labelLine={false}
+                label={({ name, percent }) =>
+                  `${name}: ${(percent * 100).toFixed(0)}%`
+                }
+                outerRadius={140}
+                fill="#8884d8"
+                dataKey="value"
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="day" axisLine={false} tickLine={false} />
-                <YAxis domain={[0, 10]} axisLine={false} tickLine={false} />
-                <Tooltip
-                  cursor={{ stroke: "#a3a3a3", strokeDasharray: 2 }}
-                  wrapperStyle={{ outline: "none" }}
-                />
-                
-                <defs>
-                  <linearGradient id="colorMood" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#4c51bf" stopOpacity={0.8} />
-                    <stop offset="95%" stopColor="#4c51bf" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                
-                <Line
-                  type="monotone"
-                  dataKey="mood"
-                  stroke="#4c51bf"
-                  strokeWidth={3}
-                  dot={{ r: 5 }}
-                  activeDot={{ r: 8 }}
-                />
-                
-                <Line
-                  type="monotone"
-                  dataKey="mood"
-                  stroke="url(#colorMood)"
-                  strokeWidth={0}
-                  fillOpacity={1}
-                  fill="url(#colorMood)"
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+                {pieData.map((entry, index) => (
+                  <Cell
+                    key={`cell-${index}`}
+                    fill={COLORS[index % COLORS.length]}
+                  />
+                ))}
+              </Pie>
+              <Tooltip />
+              <Legend verticalAlign="bottom" height={36} />
+            </PieChart>
+          </ResponsiveContainer>
         </div>
       </div>
     </div>

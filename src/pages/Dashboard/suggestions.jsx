@@ -1,50 +1,95 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import EmotionCard from "../../components/Ui/EmotionCard";
 import Button from "../../components/Ui/Button";
+import { fetchWithToken } from "../../utils/api"; // helper for JWT requests
+
+// Debounce hook (to avoid calling API too often while typing)
+const useDebounce = (value, delay) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debouncedValue;
+};
 
 const Suggestions = () => {
-  const [selectedEmotion, setSelectedEmotion] = useState(null);
   const [journalText, setJournalText] = useState("");
-  const [message, setMessage] = useState("");
   const [predictedMood, setPredictedMood] = useState(null);
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const emotions = [
-    { label: "Happy 😊", value: "happy" },
-    { label: "Neutral 🙂", value: "neutral" },
-    { label: "Stressed 😔", value: "stressed" },
-    { label: "Anxious 😟", value: "anxious" },
+    { label: "Happy 😊", value: "happy", color: "yellow" },
+    { label: "Neutral 🙂", value: "neutral", color: "gray" },
+    { label: "Stressed 😔", value: "stressed", color: "red" },
+    { label: "Anxious 😟", value: "anxious", color: "purple" },
+    { label: "Others 😶", value: "others", color: "blue" },
   ];
 
-  const handleSubmit = async () => {
-    if (!selectedEmotion && journalText.trim() === "") {
-      setMessage("Please select a mood or write in the journal.");
-      return;
-    }
+  const debouncedJournal = useDebounce(journalText, 1000);
 
-    setMessage("Sending data...");
-    setPredictedMood(null);
-
-    try {
-      const response = await fetch("http://127.0.0.1:5000/api/get-suggestions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mood: selectedEmotion,
-          journal_entry: journalText.trim(),
-        }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setMessage(data.suggestion);
-        setPredictedMood(data.mood);
-      } else {
-        setMessage(`Error: ${data.error}`);
+  useEffect(() => {
+    const predictMood = async () => {
+      if (debouncedJournal.trim() === "") {
+        setPredictedMood(null);
+        setMessage("");
+        return;
       }
-    } catch (error) {
-      setMessage("Failed to connect to the backend.");
-      console.error("Connection error:", error);
+
+      setLoading(true);
+      try {
+        // Step 1: Ask backend for prediction + suggestion
+        const data = await fetchWithToken("http://127.0.0.1:5000/api/get-suggestions", {
+          method: "POST",
+          body: JSON.stringify({ mood: null, journal_entry: debouncedJournal }),
+        });
+
+        let moodToHighlight = data.mood || "others";
+        moodToHighlight = moodToHighlight.toLowerCase();
+        if (!["happy", "neutral", "stressed", "anxious"].includes(moodToHighlight)) {
+          moodToHighlight = "others";
+        }
+
+        setPredictedMood(moodToHighlight);
+        setMessage(data.suggestion || "");
+
+        // Step 2: Map moods → scores for chart
+        const moodScores = { happy: 8, neutral: 5, stressed: 3, anxious: 2, others: 4 };
+
+        // Step 3: Save into DB with JWT token
+        await fetchWithToken("http://127.0.0.1:5000/api/save-mood", {
+          method: "POST",
+          body: JSON.stringify({
+            mood: moodToHighlight,
+            score: moodScores[moodToHighlight] || 5,
+          }),
+        });
+      } catch (error) {
+        console.error("Error fetching suggestion:", error);
+        setMessage("Failed to connect to backend.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    predictMood();
+  }, [debouncedJournal]);
+
+  const getTextareaBorderColor = () => {
+    switch (predictedMood) {
+      case "happy":
+        return "border-yellow-400";
+      case "neutral":
+        return "border-gray-400";
+      case "stressed":
+        return "border-red-400";
+      case "anxious":
+        return "border-purple-400";
+      case "others":
+        return "border-blue-400";
+      default:
+        return "border-gray-300";
     }
   };
 
@@ -54,39 +99,42 @@ const Suggestions = () => {
         How are you feeling today?
       </h1>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-6 w-full max-w-2xl">
+      {/* Mood cards */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-6 mb-6 w-full max-w-2xl">
         {emotions.map((emotion) => (
           <EmotionCard
             key={emotion.value}
             label={emotion.label}
-            selected={predictedMood ? predictedMood === emotion.value : selectedEmotion === emotion.value}
-            onClick={() => !predictedMood && setSelectedEmotion(emotion.value)}
+            color={emotion.color}
+            selected={predictedMood === emotion.value}
+            onClick={null}
           />
         ))}
       </div>
 
-      <div className="w-full max-w-2xl mb-6">
-        <h2 className="text-lg font-semibold mb-2">Write about your day:</h2>
-        <div className="p-1 rounded-lg bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500">
-          <textarea
-            className="w-full h-32 p-4 rounded-md text-gray-800 bg-white focus:outline-none focus:ring-0 resize-none"
-            placeholder="I feel..."
-            value={journalText}
-            onChange={(e) => setJournalText(e.target.value)}
-          />
-        </div>
+      {/* Journal input */}
+      <div className="w-full mb-4">
+        <h2 className="text-xl font-semibold mb-2">Write about your day:</h2>
+        <textarea
+          className={`w-full h-36 p-4 rounded-md text-gray-800 bg-white focus:outline-none resize-none border-2 transition-all duration-300 ${getTextareaBorderColor()}`}
+          placeholder="What happened today? How are you feeling? Any specific events or thoughts?"
+          value={journalText}
+          onChange={(e) => setJournalText(e.target.value)}
+          disabled={loading}
+        />
       </div>
 
-      <Button onClick={handleSubmit} disabled={!!predictedMood}>
-        Submit
-      </Button>
-
+      {/* AI suggestion */}
       {message && (
-        <div className="w-full max-w-2xl mt-6 p-4 rounded-lg bg-white shadow-md border border-gray-300">
+        <div className="w-full max-w-2xl mb-4 p-4 rounded-lg bg-white shadow-md border border-gray-300">
           <h3 className="font-semibold mb-2 text-gray-700">AI Suggestion:</h3>
           <p className="text-gray-800">{message}</p>
         </div>
       )}
+
+      <Button disabled>
+        {loading ? "Analyzing..." : "Mood detected automatically"}
+      </Button>
     </div>
   );
 };
