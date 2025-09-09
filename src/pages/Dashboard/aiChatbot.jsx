@@ -53,7 +53,7 @@ function Chat() {
 
   const resetChat = async () => {
     try {
-      await fetchWithToken("http://127.0.0.1:5000/chat/reset", { method: "POST" });
+      await fetchWithToken("https://mindmatrix-3.onrender.com/chat/reset", { method: "POST" });
       setMessages([]);
     } catch (err) {
       console.error("Error resetting chat:", err);
@@ -74,7 +74,7 @@ function Chat() {
     setIsTyping(true);
 
     try {
-      const data = await fetchWithToken("http://127.0.0.1:5000/chat", {
+      const data = await fetchWithToken("https://mindmatrix-3.onrender.com/chat", {
         method: "POST",
         body: JSON.stringify({ message: msg }),
       });
