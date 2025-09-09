@@ -40,7 +40,7 @@ const Suggestions = () => {
       setLoading(true);
       try {
         // Step 1: Ask backend for prediction + suggestion
-        const data = await fetchWithToken("http://127.0.0.1:5000/api/get-suggestions", {
+        const data = await fetchWithToken("https://mindmatrix-3.onrender.com/api/get-suggestions", {
           method: "POST",
           body: JSON.stringify({ mood: null, journal_entry: debouncedJournal }),
         });
@@ -58,7 +58,7 @@ const Suggestions = () => {
         const moodScores = { happy: 8, neutral: 5, stressed: 3, anxious: 2, others: 4 };
 
         // Step 3: Save into DB with JWT token
-        await fetchWithToken("http://127.0.0.1:5000/api/save-mood", {
+        await fetchWithToken("https://mindmatrix-3.onrender.com/api/save-mood", {
           method: "POST",
           body: JSON.stringify({
             mood: moodToHighlight,
