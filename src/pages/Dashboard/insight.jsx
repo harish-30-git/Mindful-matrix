@@ -20,7 +20,7 @@ export default function Insight() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const moods = await fetchWithToken("http://127.0.0.1:5000/api/weekly-moods");
+        const moods = await fetchWithToken("https://mindmatrix-3.onrender.com/api/weekly-moods");
         setData(moods);
       } catch (err) {
         console.error("Error loading moods:", err);
