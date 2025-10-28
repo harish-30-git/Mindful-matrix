@@ -13,14 +13,18 @@ import {
   Cell,
   Legend,
 } from "recharts";
+import { motion, useAnimation } from "framer-motion";
+import { BookOpen, Music } from "lucide-react";
 
 export default function Insight() {
   const [data, setData] = useState([]);
+  const [isHovered, setIsHovered] = useState(false);
+  const controls = useAnimation();
 
   useEffect(() => {
     const loadData = async () => {
       try {
-        const moods = await fetchWithToken("https://mindmatrix-3.onrender.com/api/weekly-moods");
+        const moods = await fetchWithToken("http://127.0.0.1:5000/api/weekly-moods");
         setData(moods);
       } catch (err) {
         console.error("Error loading moods:", err);
@@ -39,6 +43,33 @@ export default function Insight() {
 
   const COLORS = ["#facc15", "#805ad5", "#e53e3e", "#718096"];
 
+  const books = [
+    "The Power of Now – Eckhart Tolle",
+    "Atomic Habits – James Clear",
+    "Ikigai – Héctor García",
+    "The Subtle Art of Not Giving a F*ck – Mark Manson",
+    "Man’s Search for Meaning – Viktor Frankl",
+  ];
+
+  const songs = [
+    "Good Life – OneRepublic",
+    "Happy – Pharrell Williams",
+    "Count on Me – Bruno Mars",
+    "Hall of Fame – The Script",
+    "Firework – Katy Perry",
+  ];
+
+  useEffect(() => {
+    if (!isHovered) {
+      controls.start({
+        x: ["0%", "-100%"],
+        transition: { duration: 40, ease: "linear", repeat: Infinity },
+      });
+    } else {
+      controls.stop(); // stop animation on hover
+    }
+  }, [isHovered, controls]);
+
   return (
     <div className="flex flex-col bg-gradient-to-tr from-sky-200 via-sky-50 to-violet-100 min-h-screen p-6">
       {/* Title */}
@@ -47,16 +78,16 @@ export default function Insight() {
       </h1>
 
       {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10">
         {/* Line Chart */}
-        <div className="bg-white p-6 rounded-3xl shadow-xl">
-          <h2 className="text-2xl font-semibold text-center mb-6 text-gray-700">
+        <div className="bg-white p-5 rounded-3xl shadow-xl h-[380px]">
+          <h2 className="text-2xl font-semibold text-center mb-4 text-gray-700">
             Weekly Mood Trend
           </h2>
-          <ResponsiveContainer width="100%" height={400}>
+          <ResponsiveContainer width="100%" height={280}>
             <LineChart
               data={data}
-              margin={{ top: 20, right: 30, left: 0, bottom: 5 }}
+              margin={{ top: 20, right: 20, left: 0, bottom: 5 }}
             >
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis dataKey="day" axisLine={false} tickLine={false} />
@@ -78,11 +109,11 @@ export default function Insight() {
         </div>
 
         {/* Pie Chart */}
-        <div className="bg-white p-6 rounded-3xl shadow-xl">
-          <h2 className="text-2xl font-semibold text-center mb-6 text-gray-700">
+        <div className="bg-white p-5 rounded-3xl shadow-xl h-[380px]">
+          <h2 className="text-2xl font-semibold text-center mb-4 text-gray-700">
             Mood Distribution
           </h2>
-          <ResponsiveContainer width="100%" height={400}>
+          <ResponsiveContainer width="100%" height={280}>
             <PieChart>
               <Pie
                 data={pieData}
@@ -92,7 +123,7 @@ export default function Insight() {
                 label={({ name, percent }) =>
                   `${name}: ${(percent * 100).toFixed(0)}%`
                 }
-                outerRadius={140}
+                outerRadius={100}
                 fill="#8884d8"
                 dataKey="value"
               >
@@ -107,6 +138,45 @@ export default function Insight() {
               <Legend verticalAlign="bottom" height={36} />
             </PieChart>
           </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Mood Booster Zone */}
+      <div
+        className="bg-white p-6 rounded-3xl shadow-xl overflow-hidden"
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
+        <h2 className="text-3xl font-semibold text-center mb-6 text-gray-700">
+          Mood Booster Zone😎
+        </h2>
+
+        {/* Animated scrolling content */}
+        <div className="relative flex overflow-hidden whitespace-nowrap">
+          <motion.div
+            animate={controls}
+            className="flex gap-16 px-4 text-lg text-gray-800"
+          >
+            {books.map((book, index) => (
+              <div
+                key={index}
+                className="flex items-center gap-2 bg-sky-100 px-4 py-2 rounded-full shadow"
+              >
+                <BookOpen className="text-sky-600" size={20} />
+                <span>{book}</span>
+              </div>
+            ))}
+
+            {songs.map((song, index) => (
+              <div
+                key={index + books.length}
+                className="flex items-center gap-2 bg-violet-100 px-4 py-2 rounded-full shadow"
+              >
+                <Music className="text-violet-600" size={20} />
+                <span>{song}</span>
+              </div>
+            ))}
+          </motion.div>
         </div>
       </div>
     </div>
